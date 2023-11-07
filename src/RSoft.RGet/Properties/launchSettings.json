@@ -1,0 +1,35 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    },
+    "RGet file": {
+      "commandName": "Project",
+      "commandLineArgs": "-i sampleUrls.txt -t 100 -s -B https://google.com"
+    },
+    "RGet file logged": {
+      "commandName": "Project",
+      "commandLineArgs": "-i sampleUrls.txt -t 100 -s -o log.txt -B https://google.com"
+    },
+    "RGet file background": {
+      "commandName": "Project",
+      "commandLineArgs": "-i sampleUrls.txt -t 100 -sb -B https://google.com"
+    },
+    "RGet file wait": {
+      "commandName": "Project",
+      "commandLineArgs": "-i sampleUrls.txt -t 100 -s -B https://google.com -w 10"
+    },
+    "RGet url": {
+      "commandName": "Project",
+      "commandLineArgs": "https://google.com/?q=whatever -O whatever.html"
+    },
+    "RGet empty": {
+      "commandName": "Project"
+    },
+    "RGet help": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
+    }
+  }
+}
