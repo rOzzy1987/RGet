@@ -3,6 +3,7 @@ using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 using System.Diagnostics;
 using System.Reflection;
+using System.Text;
 
 namespace RSoft.RGet;
 public class Program
@@ -25,7 +26,7 @@ public class Program
         fileOption.AddAlias("-i");
 
         var timeoutOption = new Option<int?>("--timeout", "Timeout in seconds");
-        timeoutOption.AddAlias("-t");
+        timeoutOption.AddAlias("-T");
 
         var quietOption = new Option<bool>("--quiet", "Quiet mode");
         quietOption.AddAlias("-q");
@@ -52,26 +53,51 @@ public class Program
         var backgroundOption = new Option<bool>("--background", "Start the download in the background");
         backgroundOption.AddAlias("-b");
 
+        var methodOption = new Option<string>("--method", "The HTTP method to use.");
+        methodOption.AddAlias("-M");
+
+        var payloadStringOption = new Option<string?>("--body-data", "The data to be sent along with the request");
+        payloadStringOption.AddAlias("-d");
+
+        var payloadFileOption = new Option<FileInfo?>("--body-file", "The file containing data to be sent along with the request");
+        payloadFileOption.AddAlias("-D");
+
+        var postStringOption = new Option<string?>("--post-data", "Shorthand for --method Post --body-data <Data>");
+        postStringOption.AddAlias("-p");
+
+        var postFileOption = new Option<FileInfo?>("--post-file", "Shorthand for --method Post --body-file <File>");
+        postFileOption.AddAlias("-P");
+
+        var mediaTypeOption = new Option<string?>("--media", "Media type to send along with request body");
+        mediaTypeOption.AddAlias("-m");
 
         var rootCommand = new RootCommand("A dumb wget alternative for windows");
         rootCommand.AddArgument(urlArgument);
         rootCommand.AddOption(fileOption);
+        rootCommand.AddOption(baseAddressOption);
+
+        rootCommand.AddOption(methodOption);
+        rootCommand.AddOption(payloadStringOption);
+        rootCommand.AddOption(payloadFileOption);
+        rootCommand.AddOption(postStringOption);
+        rootCommand.AddOption(postFileOption);
+        rootCommand.AddOption(mediaTypeOption);
+
         rootCommand.AddOption(timeoutOption);
-        rootCommand.AddOption(quietOption);
         rootCommand.AddOption(outputOption);
         rootCommand.AddOption(successOnlyOption);
-        rootCommand.AddOption(logOption);
         rootCommand.AddOption(userAgentOption);
-        rootCommand.AddOption(baseAddressOption);
         rootCommand.AddOption(waitOption);
         rootCommand.AddOption(backgroundOption);
+        rootCommand.AddOption(quietOption);
+        rootCommand.AddOption(logOption);
 
 
         rootCommand.SetHandler(async (InvocationContext ictx) =>
         {
             var pr = ictx.ParseResult;
 
-            if(pr.GetValueForOption(backgroundOption))
+            if (pr.GetValueForOption(backgroundOption))
             {
                 var exeArgs = pr.Tokens.Select(t => t.Value).Where(t => !backgroundOption.Aliases.Contains(t)).ToArray();
                 StartNewInstance(exeArgs);
@@ -84,7 +110,17 @@ public class Program
             ctx.LogFile = pr.GetValueForOption(logOption);
             ctx.BaseUri = pr.GetValueForOption(baseAddressOption);
             ctx.Wait = pr.GetValueForOption(waitOption);
-            ctx.UserAgent = pr.GetValueForOption(userAgentOption) ?? "RGet";
+            ctx.UserAgent = pr.GetValueForOption(userAgentOption)!;
+            ctx.Method = pr.GetValueForOption(methodOption) == null 
+                ? null 
+                : new HttpMethod(pr.GetValueForOption(methodOption)!);
+
+            var bstr = pr.GetValueForOption(payloadStringOption);
+            var bfile = pr.GetValueForOption(payloadFileOption);
+            var pstr = pr.GetValueForOption(postStringOption);
+            var pfile = pr.GetValueForOption(postFileOption);
+            var mediaType = pr.GetValueForOption(mediaTypeOption);
+            if (!SetRequestBody(bstr, bfile, pstr, pfile, mediaType)) return;
 
             var url = pr.GetValueForArgument(urlArgument);
             var file = pr.GetValueForOption(fileOption);
@@ -92,27 +128,27 @@ public class Program
 
             if (!string.IsNullOrEmpty(url))
             {
-                await rget.GetUrl(url, output);
+                await rget.SendRequest(url, output);
             }
-            else if (file != null) {
+            else if (file != null)
+            {
                 if (!file.Exists)
                 {
                     console.WriteLine($"File {file.Name} doesn't exist!");
+                    return;
                 }
-                else
-                {
-                    var lines = File.ReadAllLines(file.FullName).Select(l => l.Trim()).Where(l => !string.IsNullOrEmpty(l) && !l.StartsWith("-")).ToArray();
+                var lines = File.ReadAllLines(file.FullName).Select(l => l.Trim()).Where(l => !string.IsNullOrEmpty(l) && !l.StartsWith("-")).ToArray();
 
-                    for(var i = 0; i < lines.Length; i++)
+                for (var i = 0; i < lines.Length; i++)
+                {
+                    await rget.SendRequest(lines[i]);
+                    if (ctx.Wait.HasValue && i < lines.Length - 1)
                     {
-                        await rget.GetUrl(lines[i]);
-                        if (ctx.Wait.HasValue && i < lines.Length - 1)
-                        {
-                            console.WriteLine($"Waiting {ctx.Wait} seconds before next request");
-                            await Task.Delay(ctx.Wait.Value * 1000);
-                        }
+                        console.WriteLine($"Waiting {ctx.Wait} seconds before next request");
+                        await Task.Delay(ctx.Wait.Value * 1000);
                     }
                 }
+
             }
         });
 
@@ -134,6 +170,69 @@ public class Program
         };
         Process.Start(psi);
         return;
+    }
+
+    static bool SetRequestBody(string? bstr, FileInfo? bfile, string? pstr, FileInfo? pfile, string? mediaType)
+    {
+        if (bstr != null)
+        {
+            ctx.BodyStr = bstr;
+        }
+        if (bfile != null)
+        {
+            if (ctx.Body != null)
+            {
+                console.WriteLine("Multiple request body options set!");
+                return false;
+            }
+            if (!bfile.Exists)
+            {
+                console.WriteLine($"File {bfile.Name} doesn't exist!");
+                return false;
+            }
+            ctx.Body = File.ReadAllBytes(bfile.FullName);
+        }
+        if (pstr != null)
+        {
+            if (ctx.Method != null && ctx.Method != HttpMethod.Post)
+            {
+                console.WriteLine($"HTTP Method already set to {ctx.Method}");
+                return false;
+            }
+            if (ctx.Body != null)
+            {
+                console.WriteLine("Multiple request body options set!");
+                return false;
+            }
+            ctx.Method = HttpMethod.Post;
+            ctx.BodyStr = pstr;
+        }
+        if (pfile != null)
+        {
+            if (ctx.Method != null && ctx.Method != HttpMethod.Post)
+            {
+                console.WriteLine($"HTTP Method already set to {ctx.Method}");
+                return false;
+            }
+            if (ctx.Body != null)
+            {
+                console.WriteLine("Multiple request body options set!");
+                return false;
+            }
+            if (!pfile.Exists)
+            {
+                console.WriteLine($"File {pfile.Name} doesn't exist!");
+                return false;
+            }
+            ctx.Method = HttpMethod.Post;
+            ctx.Body = File.ReadAllBytes(pfile.FullName);
+        }
+
+        if(mediaType != null)
+        {
+            ctx.MediaType = mediaType;
+        }
+        return true;
     }
 }
 

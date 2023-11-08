@@ -41,4 +41,43 @@ public class RGetConsole
         Console.CursorLeft += column;
         Console.CursorTop += row;
     }
+
+
+    public  async Task ProgressBar(Task task, int c = 10)
+    {
+        while (!(new[] { TaskStatus.Canceled, TaskStatus.RanToCompletion, TaskStatus.Faulted }).Contains(task.Status))
+        {
+            ProgressBar(c: c);
+            await Task.Delay(100);
+        }
+        ClearProgressBar(c);
+    }
+
+    int indeterminate;
+    public void ProgressBar(double? progress = null, int c = 10)
+    {
+        var chars = new char[c + 2];
+        chars[0] = '[';
+        chars[c + 1] = ']';
+        for (int i = 0; i < c; i++)
+        {
+            if (progress == null)
+            {
+                chars[i + 1] = indeterminate % c == i ? '.' : ' ';
+            }
+            else
+            {
+                chars[i + 1] = progress > i / (double)c ? '0' : '-';
+            }
+        }
+        indeterminate++;
+        Write(new string(chars), true);
+        Jump(column: -(c + 2));
+    }
+
+    public void ClearProgressBar(int c = 10)
+    {
+        Write(new string(' ', c + 2), true);
+        Jump(column: -(c + 2));
+    }
 }

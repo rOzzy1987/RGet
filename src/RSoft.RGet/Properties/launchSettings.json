@@ -1,9 +1,5 @@
 {
   "profiles": {
-    "WSL": {
-      "commandName": "WSL2",
-      "distributionName": ""
-    },
     "RGet file": {
       "commandName": "Project",
       "commandLineArgs": "-i sampleUrls.txt -t 100 -s -B https://google.com"
@@ -23,6 +19,14 @@
     "RGet url": {
       "commandName": "Project",
       "commandLineArgs": "https://google.com/?q=whatever -O whatever.html"
+    },
+    "RGet url post json": {
+      "commandName": "Project",
+      "commandLineArgs": "https://google.com/?q=whatever -O whatever.html -p \"{'asdf': true}\" -m application/json"
+    },
+    "RGet url put file": {
+      "commandName": "Project",
+      "commandLineArgs": "https://google.com/?q=whatever -O whatever.html --method Put -D sampleUrls.txt"
     },
     "RGet empty": {
       "commandName": "Project"

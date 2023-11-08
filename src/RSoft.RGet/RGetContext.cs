@@ -9,4 +9,10 @@ public class RGetContext
     public string UserAgent { get; set; } = "";
     public string? BaseUri { get; set; }
     public int? Wait { get; set; }
+
+    public HttpMethod? Method { get; set; }
+    public byte[]? Body { get; set; }
+    public string? BodyStr { get; set; }
+    public string? MediaType { get; set; }
+
 }
