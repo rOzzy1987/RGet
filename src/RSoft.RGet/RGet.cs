@@ -10,8 +10,9 @@ public class RGet
     private readonly RGetConsole _console;
     private readonly RGetContext _context;
 
-    private HttpClient _httpClient;
-    static Regex _illegalFileNameChars = new Regex(@"[^a-zA-Z0-9\.\-_]");
+    private HttpClient _httpClient = null!;
+    private static readonly Regex _illegalFileNameChars = new Regex(@"[^a-zA-Z0-9\.\-_]");
+    private static readonly Regex _httpHeaderFilenameRegex = new Regex("^attachment;(?:\\s*)filename=");
 
     public RGet(RGetContext context, RGetConsole console)
     {
@@ -88,10 +89,8 @@ public class RGet
 
     private string GetOutputFile(string? outputFile, HttpResponseMessage response, Uri uri)
     {
-        var filenameRegex = new Regex("^attachment;(?:\\s*)filename=");
-
         var responseFilename = response.Headers.FirstOrDefault(h => h.Key == "content-disposition").Value?.FirstOrDefault();
-        responseFilename = responseFilename == null ? null : filenameRegex.Replace(responseFilename, "");
+        responseFilename = responseFilename == null ? null : _httpHeaderFilenameRegex.Replace(responseFilename, "");
         outputFile ??= responseFilename ?? _illegalFileNameChars.Replace(uri.ToString().Split('/').Last(p => p != ""), "_");
         return outputFile;
     }
